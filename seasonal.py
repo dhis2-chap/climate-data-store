@@ -126,7 +126,7 @@ class SeasonalForecastHandler():
             #the first dimension is the ensembles, the second dimension represent each time step, the third dimension contain a 1-item array with the value for the given step
             cropped_ds : xr.core.dataarray.DataArray = ds[variable].rio.clip(geometries=[geometry])
        
-            print(f"Feature '{feature["properties"]["name"]}' match on total {len(cropped_ds.latitude.values)*len(cropped_ds.longitude.values)} datapoints ({cropped_ds.latitude.values}, {cropped_ds.longitude.values}).")
+            #print(f"Feature '{feature["properties"]["name"]}' match on total {len(cropped_ds.latitude.values)*len(cropped_ds.longitude.values)} datapoints ({cropped_ds.latitude.values}, {cropped_ds.longitude.values}).")
             
             #all or a subset of the dimensions of length 1 would be removed
             squeezed_ds = cropped_ds.squeeze()

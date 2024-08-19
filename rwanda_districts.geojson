@@ -3121,7 +3121,7 @@
       "properties": {
         "source": "https://simplemaps.com", 
         "id": "RW02", 
-        "name": "Eastern"
+        "name": "East"
       }, 
       "id": "RW02"
     }, 
@@ -4065,7 +4065,7 @@
       "properties": {
         "source": "https://simplemaps.com", 
         "id": "RW05", 
-        "name": "Southern"
+        "name": "South"
       }, 
       "id": "RW05"
     }, 
@@ -8105,7 +8105,7 @@
       "properties": {
         "source": "https://simplemaps.com", 
         "id": "RW04", 
-        "name": "Western"
+        "name": "West"
       }, 
       "id": "RW04"
     }, 
@@ -8793,7 +8793,7 @@
       "properties": {
         "source": "https://simplemaps.com", 
         "id": "RW03", 
-        "name": "Northern"
+        "name": "North"
       }, 
       "id": "RW03"
     }, 

@@ -1,0 +1,22 @@
+name: climate-data-store
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - numpy
+  - pandas
+  - xarray
+  - netCDF4
+  - requests
+  - geopandas
+  - cdsapi
+  - conda-forge::cdsapi
+  - rioxarray
+  - pydantic
+  - geojson
+  - matplotlib
+  - shapely
+  - jupyter
+  - pip
+  - pip:
+    - simplejson

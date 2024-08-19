@@ -207,11 +207,16 @@ if __name__ == "__main__":
 
 
     if len(sys.argv) < 3:
-        print("Usage: python fetch_data.py file_path indicator\n\n • file_path : path to geojson-file\n • indicator: '2m_temperature' or 'total_precipitation'\n")
+        print("Usage: python fetch_data.py [file_path] [indicator] [skipDownload] \n\n • file_path: path to geojson-file\n • indicator: '2m_temperature' or 'total_precipitation'\n • skipDownload: skip download of netCDF-file from Copernicus, useful when you already have the file downloaded. (True/False)\n")
         sys.exit(1)
 
     file_path = sys.argv[1]
     indicator = sys.argv[2]
+
+    try:
+        skip_download = sys.argv[3]
+    except (IndexError):
+        skip_download = False
 
     with open(file_path) as file:
         geojson_data = json.load(file)
@@ -224,7 +229,7 @@ if __name__ == "__main__":
         file_name_postfix="-sierra-leone",
         periode_type="W",
         indicator=indicator,
-        skip_download=True
+        skip_download=skip_download
     )
 
     fetch_data = FetchCopernicusData(config)
