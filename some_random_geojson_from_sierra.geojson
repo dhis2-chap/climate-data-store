@@ -1,0 +1,103 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "a",
+      "properties": {
+        "name": "myndddame"
+      },
+      "geometry": {
+        "coordinates": [
+          -13.304,
+          6.917
+        ],
+        "type": "Point"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "b",
+      "properties": {
+        "name": "f"
+      },
+      "geometry": {
+        "coordinates": [
+          -13.304,
+          9.918
+        ],
+        "type": "Point"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "54",
+      "properties": {
+        "name": "w"
+      },
+      "geometry": {
+        "coordinates": [
+          -12.30366667,
+          8.918
+        ],
+        "type": "Point"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ngf",
+      "properties": {
+        "name": "c"
+      },
+      "geometry": {
+        "coordinates": [
+          -12.30366667,
+          7.918
+        ],
+        "type": "Point"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "23",
+      "properties": {
+        "name": "b"
+      },
+      "geometry": {
+        "coordinates": [
+          -12.30366667,
+          6.917
+        ],
+        "type": "Point"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "gerg",
+      "properties": {
+        "name": "3"
+      },
+      "geometry": {
+        "coordinates": [
+          -10.303,
+          6.917
+        ],
+        "type": "Point"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "eger",
+      "properties": {
+        "name": "6"
+      },
+      "geometry": {
+        "coordinates": [
+          -10.303,
+          9.918
+        ],
+        "type": "Point"
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+    "type": "FeatureCollection",
+    "crs": {
+        "properties": {
+            "name": "EPSG:3857"
+        },
+        "type": "name"
+    },
+    "features": [
+        {
+            "type": "Feature",
+            "id" : "okverv",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    [
+                        [
+                            10.49,
+                            59.811
+                        ]
+                    ]
+                ]
+            },
+            "properties": {
+                "name" : "oslo",
+                "orgUnitId" : "Oslo",
+                "objtype": "Fylke",
+                "opphav": null,
+                "samiskforvaltningsomrade": false,
+                "versjonid": "4.1",
+                "navn": [
+                    {
+                        "sprak": "nor",
+                        "rekkefolge": "",
+                        "navn": "Oslo"
+                    }
+                ],
+                "lokalid": "173159",
+                "datafangstdato": null,
+                "oppdateringsdato": null,
+                "datauttaksdato": "20191220110422",
+                "fylkesnummer": "03",
+                "navnerom": "http://skjema.geonorge.no/SOSI/produktspesifikasjon/AdmEnheter/4.1"
+            }
+        }
+    ]
+}

@@ -1,0 +1,7 @@
+results
+old
+
+*.grib
+*.grib2
+*.nc
+*.idx

@@ -1,0 +1,12 @@
+<PAMDataset>
+  <Array name="Sliced view of /t2m ([0])">
+    <Statistics>
+      <ApproxStats>1</ApproxStats>
+      <Minimum>283.353515625</Minimum>
+      <Maximum>293.206787109375</Maximum>
+      <Mean>289.789489746093807</Mean>
+      <StdDev>2.74687508044028572</StdDev>
+      <ValidSampleCount>12</ValidSampleCount>
+    </Statistics>
+  </Array>
+</PAMDataset>
