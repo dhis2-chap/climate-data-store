@@ -3120,10 +3120,10 @@
       "type": "Feature", 
       "properties": {
         "source": "https://simplemaps.com", 
-        "id": "RW02", 
+        "id": "LGNjeakKI1q", 
         "name": "East"
       }, 
-      "id": "RW02"
+      "id": "LGNjeakKI1q"
     }, 
     {
       "geometry": {
@@ -4064,10 +4064,10 @@
       "type": "Feature", 
       "properties": {
         "source": "https://simplemaps.com", 
-        "id": "RW05", 
+        "id": "yWSou5tPiPs", 
         "name": "South"
       }, 
-      "id": "RW05"
+      "id": "yWSou5tPiPs"
     }, 
     {
       "geometry": {
@@ -8104,10 +8104,10 @@
       "type": "Feature", 
       "properties": {
         "source": "https://simplemaps.com", 
-        "id": "RW04", 
+        "id": "cg6QcrrDhW7", 
         "name": "West"
       }, 
-      "id": "RW04"
+      "id": "cg6QcrrDhW7"
     }, 
     {
       "geometry": {
@@ -8792,10 +8792,10 @@
       "type": "Feature", 
       "properties": {
         "source": "https://simplemaps.com", 
-        "id": "RW03", 
+        "id": "DTxwpZ1iTSq", 
         "name": "North"
       }, 
-      "id": "RW03"
+      "id": "DTxwpZ1iTSq"
     }, 
     {
       "geometry": {
@@ -9208,10 +9208,10 @@
       "type": "Feature", 
       "properties": {
         "source": "https://simplemaps.com", 
-        "id": "RW01", 
+        "id": "MnK7wTQx9wc", 
         "name": "Kigali City"
       }, 
-      "id": "RW01"
+      "id": "MnK7wTQx9wc"
     }
   ]
 }

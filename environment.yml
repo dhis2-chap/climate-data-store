@@ -11,6 +11,7 @@ dependencies:
   - geopandas
   - cdsapi
   - conda-forge::cdsapi
+  - conda-forge::cfgrib
   - rioxarray
   - pydantic
   - geojson

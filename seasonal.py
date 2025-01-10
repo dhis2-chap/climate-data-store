@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 from shapely import LineString, MultiPoint, Polygon
 import matplotlib.pyplot as plt
+from dateutil.relativedelta import relativedelta
 
 class PeriodeValue(BaseModel):
     nameOfPeriode : str
@@ -50,6 +51,9 @@ converters = {
 }
 
 class SeasonalForecastHandler():
+
+    class Config:
+        arbitrary_types_allowed=True
 
     def __init__(self, config : SeasonalForecastHandlerConfig):
         self.variable = config.variable
@@ -126,7 +130,7 @@ class SeasonalForecastHandler():
             #the first dimension is the ensembles, the second dimension represent each time step, the third dimension contain a 1-item array with the value for the given step
             cropped_ds : xr.core.dataarray.DataArray = ds[variable].rio.clip(geometries=[geometry])
        
-            #print(f"Feature '{feature["properties"]["name"]}' match on total {len(cropped_ds.latitude.values)*len(cropped_ds.longitude.values)} datapoints ({cropped_ds.latitude.values}, {cropped_ds.longitude.values}).")
+            print(f"Feature '{feature['properties']['name']}' match on total {len(cropped_ds.latitude.values)*len(cropped_ds.longitude.values)} datapoints ({cropped_ds.latitude.values}, {cropped_ds.longitude.values}).")
             
             #all or a subset of the dimensions of length 1 would be removed
             squeezed_ds = cropped_ds.squeeze()
@@ -148,10 +152,6 @@ class SeasonalForecastHandler():
 
         #calculate the mean for all ensembles
         ensamble_mean = points.mean(keep_attrs=True)
-
-        #calculate the mean for alle affected points by lat and lon
-        #mean_of_points = points.mean(dim=["number"], keep_attrs=True)
-        #take mean of all ensembles
 
         return PointValue(
             date = ensamble_mean.coords["valid_time"].values,
@@ -202,12 +202,6 @@ class SeasonalForecastHandler():
         df = pd.DataFrame([ob.__dict__ for ob in result])
 
 
-
-        df['year_month'] = df['date'].dt.to_period(self.periode_type)
-        df = df.groupby(['org_unit_id', 'year_month', 'org_unit_name'])['value'].mean().reset_index()
-        df.sort_values(['org_unit_id', 'year_month'], inplace=True)
-
-        #grouped_df = df.chnage.sort_values(by=['org_unit_id', 'year_month'])
         if(self.total_sum_value):
             df['diff'] = df.groupby('org_unit_id')['value'].transform(lambda x: x.diff())
             # For the first month entry of each 'org_unit_id', we set the orginal value as the original value
@@ -215,86 +209,24 @@ class SeasonalForecastHandler():
             df = df.drop(columns=['value'])
             df = df.rename(columns={'diff': 'value'})
 
+            #since the leadtime hour correspond amount of climate up to that houre, the previous month/week should be used
+            if(self.periode_type == "M"):
+                df['year_month'] = (df['date'] - pd.DateOffset(months=1)).dt.to_period(self.periode_type)
+            else:
+                df['year_month'] = (df['date'] - pd.DateOffset(weeks=1)).dt.to_period(self.periode_type)
+                
+            df = df.groupby(['org_unit_id', 'year_month', 'org_unit_name'])['value'].mean().reset_index()
+
+        else:
+            df['year_month'] = df['date'].dt.to_period(self.periode_type)
+            df = df.groupby(['org_unit_id', 'year_month', 'org_unit_name'])['value'].mean().reset_index()
+
+        df.sort_values(['org_unit_id', 'year_month'], inplace=True)
+
         print(df)
 
-        df.to_csv(f"results/result_{datetime.today().strftime('%Y%m%d-%H-%M-%S')}_{self.output_file_postfix}.csv",  sep=";")
+        df.to_csv(f"results/result_{datetime.today().strftime('%Y%m%d-%H-%M-%S')}_{self.variable}_{self.output_file_postfix}.csv",  sep=";")
 
-        return
-
-        # Write the result to a file named result.json
-        #with open("result_temp"+postfix+".json", "w") as file:
-        #    file.write(json_string)
-        
-
-
-    
-        
-        
-
-        #print(geojson_data["features"])
-
-        # Convert the GeoJSON data to an xarray dataset
-
-        # Print the longitude and latitude values
-
-
-        # Continue with the rest of your code...
-        lat_point = 9.5
-        lon_point = -11.07
-
-        #print(len(ds.latitude.values)*len(ds.longitude.values))
-
-
-        #point_data = ds.where((ds.latitude == lat_point) & (ds.longitude == lon_point), drop=True)
-
-        #print(point_data.values)    
- 
-
-        lat_idx = abs(ds.latitude - lat_point).argmin()
-        lon_idx = abs(ds.longitude - lon_point).argmin()
-
-        #print(lat_idx.values)
-        #print(lon_idx.values)
-
-
-        #e_value = ds['tp'].isel(latitude=lat_idx, longitude=lon_idx, step=1)
-
-        #print(e_value.values)
-        return
-
-        #day_index = ds['time'].values.tolist().index(time_end)
-        #one_day_data = ds.where(ds['time.date'] == time_end, drop=True)#.groupby('time.month').mean('time')
-        random_value = tp.isel(step=5) #the "random_value" here represent a singel value for one prediciton, we only ask for one, so should only be one value
-
-
-        print(random_value)
-
-
-        print(random_value.valid_time.values)
-
-        # Select the data for the pixel and time period
-        #selected_data = tp.sel(latitude=latitude, longitude=longitude, time=(time_start, time_end))
-
-
-
-
-        #netcd = ds.to_netcdf("seasonal-forecast.nc")
-
-
-
-        #ds = ds - 273.15
-        #ds.t2m[0].plot(cmap=plt.cm.coolwarm)
-
-
-
-
-        #resample from dayily to months
-        #tp_monthly_sums = c.cube.resample(tp_hourly_column, freq='month', dim='time', closed='right', how='sum')
-
-        #print(data.download())
-        #
-        #with open('seasonal.json', 'w') as file:
-        #    file.write(str(json))
             
 if __name__ == "__main__":
     #fetchData()
