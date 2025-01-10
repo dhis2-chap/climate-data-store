@@ -223,6 +223,8 @@ if __name__ == "__main__":
               • indicator:                  '2m_temperature' or 'total_precipitation'\n 
               • (optional) skipDownload:    skip download of netCDF-file from Copernicus, useful when you already have the file downloaded. (True/False)\n
               • (optional) date:            date of forecast issued, format 'YYYY-MM-DD' default is today\n
+              
+              example: python fetch_data.py orgUnitsSingleSierra.geojson total_precipitation True
               """)
         sys.exit(1)
 
