@@ -163,7 +163,7 @@ class SeasonalForecastHandler():
     def extract_previous_periode():
         pass
 
-    def calucate(self):
+    def calculate(self):
 
         # open the seasonal forecast file downloaded from copernicus
         ds = xr.open_dataset(self.netcdf_file_name)
@@ -231,7 +231,7 @@ class SeasonalForecastHandler():
 if __name__ == "__main__":
     #fetchData()
     seasonal = SeasonalForecastHandler()
-    seasonal.calucate()
+    seasonal.calculate()
 
 
 

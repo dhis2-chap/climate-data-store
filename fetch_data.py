@@ -102,7 +102,7 @@ class FetchCopernicusData():
         )
 
         sfh = SeasonalForecastHandler(config=config)
-        sfh.calucate()
+        sfh.calculate()
 
     #This only support precipitation for monthly data for now
     def _get_leadtime_hours_for_sum_indicator(self, dataset_starting_date : np.datetime64, maximum_lead_time_hours : int):
