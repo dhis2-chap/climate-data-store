@@ -24,6 +24,7 @@ conda activate climate-data-store
 
 Supported seasonal forecast sources is located in file: [./forecast_sources.json](./forecast_sources.json)
 
+You could add more from: https://cds.climate.copernicus.eu/datasets/seasonal-original-single-levels?tab=download
 
 ## Run script
 - [fetch_data.py](fetch_data.py), takes care of fetching data from ECMWF
