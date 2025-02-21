@@ -145,15 +145,23 @@ class FetchCopernicusData():
             "area":  [bounding_box.north, bounding_box.west, bounding_box.south, bounding_box.east],
         }
 
-    def _get_dataset_issued_date(self, today : np.datetime64) -> np.datetime64:
+    def _get_dataset_issued_date(self, issued_date : np.datetime64) -> np.datetime64:
+        today = np.datetime64('today')
 
-        if today.item().day > 11:
-            return np.datetime64(f'{today.item().year}-{today.item().month:02d}-01', "D")
+        if issued_date.item().year == today.item().year & issued_date.item().month == today.item().month:
+            # requesting latest available dataset (same as current month)
+            if today.item().day > 11:
+                # we have passed the 11th of the current month, which means the current month dataset should be available 
+                return np.datetime64(f'{today.item().year}-{today.item().month:02d}-01', "D")
+            else:
+                # current month's dataset isn't available until after 11th, revert to the previous month's dataset instead
+                current_month = np.datetime64(today, 'M')
+                previous_month = current_month - np.timedelta64(1, 'M')
+                return np.datetime64(f'{previous_month.item().year}-{previous_month.item().month:02d}-01', "D")
         else:
-            current_month = np.datetime64(today, 'M')
-            previous_month = current_month - np.timedelta64(1, 'M')
-
-            return np.datetime64(f'{previous_month.item().year}-{previous_month.item().month:02d}-01', "D")
+            # requesting dataset from a historical month
+            # datasets are always issued for the 1st of each month
+            return np.datetime64(f'{today.item().year}-{today.item().month:02d}-01', "D")
 
     def fetch_data(self, request_config, is_value_type_sum=False, skip_download=False):
         copernicus_client = cdsapi.Client()
