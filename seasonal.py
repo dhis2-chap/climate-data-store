@@ -39,7 +39,7 @@ class SeasonalForecastHandlerConfig(BaseModel):
     netcdf_file_name : str
     features : List[object]
     periode_type : str = "M" or "W-MON" or "D" or "W-SUN"
-    aggreation_method : str = "mean" or "sum" or "max" or "min"
+    aggregation_method : str = "mean" or "sum" or "max" or "min"
     output_file_postfix : str = ""
     measurement_unit : str = "kelvin" or "m"
     total_sum_value : bool = False
@@ -60,7 +60,7 @@ class SeasonalForecastHandler():
         self.netcdf_file_name = config.netcdf_file_name
         self.features = config.features
         self.periode_type = config.periode_type
-        self.aggreation_method = config.aggreation_method
+        self.aggregation_method = config.aggregation_method
         self.output_file_postfix = config.output_file_postfix
         self.measurement_unit = config.measurement_unit
         self.total_sum_value = config.total_sum_value
@@ -82,7 +82,6 @@ class SeasonalForecastHandler():
         # Group by month and calculate mean of all values
         monthly_stats = df.resample(self.periode_type).agg({'value': ["mean"]})
 
-        
         return monthly_stats
     
     def _find_center_of_coordinates(self, geometry : List[List[int]]):
@@ -140,8 +139,6 @@ class SeasonalForecastHandler():
 
         except rioxarray.exceptions.NoDataInBounds as e:
             return self._find_nearest_point(feature["geometry"], ds, variable, feature['properties']['name'])
-            
-        
 
 
     def _get_mean_value_for_dimension_for_step_for_geometry(self, cropped_ds, feature, step : int, value_converter):
@@ -160,7 +157,7 @@ class SeasonalForecastHandler():
             org_unit_name= feature["properties"]["name"]
         )
 
-    def extract_previous_periode():
+    def extract_previous_period():
         pass
 
     def calculate(self):
@@ -197,10 +194,8 @@ class SeasonalForecastHandler():
                     feature=f
                 )
                 result.append(r)
-        
 
         df = pd.DataFrame([ob.__dict__ for ob in result])
-
 
         if(self.total_sum_value):
             df['diff'] = df.groupby('org_unit_id')['value'].transform(lambda x: x.diff())
@@ -209,7 +204,7 @@ class SeasonalForecastHandler():
             df = df.drop(columns=['value'])
             df = df.rename(columns={'diff': 'value'})
 
-            #since the leadtime hour correspond amount of climate up to that houre, the previous month/week should be used
+            #since the leadtime hour correspond amount of climate up to that hour, the previous month/week should be used
             if(self.periode_type == "M"):
                 df['year_month'] = (df['date'] - pd.DateOffset(months=1)).dt.to_period(self.periode_type)
             else:

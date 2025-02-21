@@ -65,7 +65,7 @@ class FetchCopernicusData():
 
         self.fetch_data(request_config, is_value_type_sum=(self.indicator == "total_precipitation"), skip_download=self.skip_download)
         
-        self._calculate_per_periode_and_time(indicator_dict[self.indicator])
+        self._calculate_per_period_and_time(indicator_dict[self.indicator])
 
     def _convert_from_grib_to_netcdf(self):
         ds = xr.open_dataset(self.grib_file_name, engine="cfgrib")
@@ -89,7 +89,7 @@ class FetchCopernicusData():
         return self._validate_config(config)
        
 
-    def _calculate_per_periode_and_time(self, variable):
+    def _calculate_per_period_and_time(self, variable):
 
         config = SeasonalForecastHandlerConfig(
             netcdf_file_name=self.netcdf_file_name,
@@ -113,21 +113,21 @@ class FetchCopernicusData():
 
         while(not lead_time_out_of_range):
             current_date = np.datetime64(temp_date, 'M')
-            start_date_next_periode = current_date + np.timedelta64(1, 'M')
+            start_date_next_period = current_date + np.timedelta64(1, 'M')
 
-            next_date = np.datetime64(f'{start_date_next_periode.item().year}-{start_date_next_periode.item().month:02d}-01')
+            next_date = np.datetime64(f'{start_date_next_period.item().year}-{start_date_next_period.item().month:02d}-01')
 
             #calculate the number of days to the next period, minus one, since we want last day in previous period
-            number_of_days_to_next_periode = next_date.astype('int') - dataset_starting_date.astype('int')# - 1
+            number_of_days_to_next_period = next_date.astype('int') - dataset_starting_date.astype('int')# - 1
 
-            print(number_of_days_to_next_periode)
+            print(number_of_days_to_next_period)
 
-            lead_time_houre = 24 * int(number_of_days_to_next_periode)
+            lead_time_hour = 24 * int(number_of_days_to_next_period)
 
-            if(lead_time_houre > maximum_lead_time_hours):
+            if(lead_time_hour > maximum_lead_time_hours):
                 lead_time_out_of_range = True
             else:
-                lead_time_hours.append(str(lead_time_houre))
+                lead_time_hours.append(str(lead_time_hour))
                 temp_date = next_date
 
         return lead_time_hours
@@ -171,13 +171,10 @@ class FetchCopernicusData():
 
         print("bounding box: ",  bounding_box.model_dump())
 
-        
         request_dataset_issued : np.datetime64 = self._get_dataset_issued_date(self.forecast_issued)
-
 
         if(is_value_type_sum):
             request_config["leadtime_hour"] = self._get_leadtime_hours_for_sum_indicator(request_dataset_issued, int(request_config["max_leadtime_hour"]))
-
 
         request_body = self.create_request_body(request_config, bounding_box, request_dataset_issued)
         print(request_body)
