@@ -22,7 +22,7 @@ class FetchCopernicusDataConfig(BaseModel):
     features : List[object]
     indicator : str = "2m_temperature" or "total_precipitation"
     file_name_postfix : str = ""
-    periode_type : str = "M" or "W-MON" or "D" or "W-SUN"
+    period_type : str = "M" or "W-MON" or "D" or "W-SUN"
     skip_download : bool = False
     forecast_issued : np.datetime64
     forecast_length : int
@@ -55,7 +55,7 @@ class FetchCopernicusData():
         self.features = config.features
         self.grib_file_name = f"grib/{file_name_base}{config.file_name_postfix}.grib"
         self.netcdf_file_name = f"{file_name_base}{config.file_name_postfix}.nc"
-        self.periode_type = config.periode_type
+        self.period_type = config.period_type
         self.indicator = config.indicator
         self.skip_download = config.skip_download
         self.forecast_issued = config.forecast_issued
@@ -97,7 +97,7 @@ class FetchCopernicusData():
             netcdf_file_name=self.netcdf_file_name,
             variable=variable,
             features=self.features,
-            periode_type=self.periode_type,
+            period_type=self.period_type,
             output_file_postfix=self.originating_centre,
             measurement_unit=measurement_values[self.indicator],
             total_sum_value=is_total_sum_value[self.indicator]
@@ -115,11 +115,9 @@ class FetchCopernicusData():
         current_date = np.datetime64(dataset_starting_date, np_period_type)
 
         while len(lead_time_hours) < forecast_length:
-            start_date_next_period = current_date + np.timedelta64(1, np_period_type)
+            next_date = current_date + np.timedelta64(1, np_period_type)
 
-            next_date = np.datetime64(f'{start_date_next_period.item().year}-{start_date_next_period.item().month:02d}-01')
-
-            number_of_days_since_starting_date = next_date.astype('int') - dataset_starting_date.astype('int')
+            number_of_days_since_starting_date = (next_date - dataset_starting_date).astype('timedelta64[D]').astype(int)
 
             print(number_of_days_since_starting_date)
 
@@ -171,7 +169,7 @@ class FetchCopernicusData():
 
         request_dataset_issued : np.datetime64 = self._get_dataset_issued_date(self.forecast_issued)
 
-        request_config['leadtime_hour'] = self._get_leadtime_hours(self.periode_type, request_dataset_issued, self.forecast_length)
+        request_config['leadtime_hour'] = self._get_leadtime_hours(self.period_type, request_dataset_issued, self.forecast_length)
 
         request_body = self.create_request_body(request_config, bounding_box, request_dataset_issued)
         print(request_body)
@@ -272,7 +270,7 @@ if __name__ == "__main__":
         originating_centre="ecmwf",
         features=features,
         file_name_postfix="-"+file_name_geojson,
-        periode_type="M",
+        period_type="M",
         indicator=indicator,
         skip_download=skip_download,
         forecast_issued=forecast_issued,

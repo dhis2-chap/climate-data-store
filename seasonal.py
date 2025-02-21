@@ -19,8 +19,8 @@ from shapely import LineString, MultiPoint, Polygon
 import matplotlib.pyplot as plt
 from dateutil.relativedelta import relativedelta
 
-class PeriodeValue(BaseModel):
-    nameOfPeriode : str
+class PeriodValue(BaseModel):
+    nameOfPeriod : str
     value : float
 
 
@@ -38,7 +38,7 @@ class SeasonalForecastHandlerConfig(BaseModel):
     variable : str
     netcdf_file_name : str
     features : List[object]
-    periode_type : str = "M" or "W-MON" or "D" or "W-SUN"
+    period_type : str = "M" or "W-MON" or "D" or "W-SUN"
     aggregation_method : str = "mean" or "sum" or "max" or "min"
     output_file_postfix : str = ""
     measurement_unit : str = "kelvin" or "m"
@@ -59,7 +59,7 @@ class SeasonalForecastHandler():
         self.variable = config.variable
         self.netcdf_file_name = config.netcdf_file_name
         self.features = config.features
-        self.periode_type = config.periode_type
+        self.period_type = config.period_type
         self.aggregation_method = config.aggregation_method
         self.output_file_postfix = config.output_file_postfix
         self.measurement_unit = config.measurement_unit
@@ -80,7 +80,7 @@ class SeasonalForecastHandler():
         df.set_index('date', inplace=True)
 
         # Group by month and calculate mean of all values
-        monthly_stats = df.resample(self.periode_type).agg({'value': ["mean"]})
+        monthly_stats = df.resample(self.period_type).agg({'value': ["mean"]})
 
         return monthly_stats
     
@@ -206,17 +206,17 @@ class SeasonalForecastHandler():
             df = df.rename(columns={'diff': 'value'})
 
             # since the leadtime hour corresponds to the amount of climate up to that hour, the previous month/week should be used
-            if (self.periode_type == "M"):
-                df['period'] = (df['date'] - pd.DateOffset(months=1)).dt.to_period(self.periode_type)
-            elif (self.periode_type[0] == "W"):
-                df['period'] = (df['date'] - pd.DateOffset(weeks=1)).dt.to_period(self.periode_type[0])
-            elif (self.periode_type == "D"):
-                df['period'] = (df['date'] - pd.DateOffset(days=1)).dt.to_period(self.periode_type)
+            if (self.period_type == "M"):
+                df['period'] = (df['date'] - pd.DateOffset(months=1)).dt.to_period(self.period_type)
+            elif (self.period_type[0] == "W"):
+                df['period'] = (df['date'] - pd.DateOffset(weeks=1)).dt.to_period(self.period_type[0])
+            elif (self.period_type == "D"):
+                df['period'] = (df['date'] - pd.DateOffset(days=1)).dt.to_period(self.period_type)
                 
             df = df.groupby(['org_unit_id', 'period', 'org_unit_name'])['value'].mean().reset_index()
 
         else:
-            df['period'] = df['date'].dt.to_period(self.periode_type[0])
+            df['period'] = df['date'].dt.to_period(self.period_type[0])
             df = df.groupby(['org_unit_id', 'period', 'org_unit_name'])['value'].mean().reset_index()
 
         df.sort_values(['org_unit_id', 'period'], inplace=True)
