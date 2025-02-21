@@ -6,3 +6,5 @@ old
 *.grib2
 *.nc
 *.idx
+
+*.pyc
