@@ -33,7 +33,7 @@ You could add more from: https://cds.climate.copernicus.eu/datasets/seasonal-ori
 
 ## Example
 ```bash
-python fetch_data.py orgUnitsSingleSierra.geojson total_precipitation
+python fetch_data.py data/orgUnitsSingleSierra.geojson total_precipitation
 ```
 
 Results will be located in folder "results"
