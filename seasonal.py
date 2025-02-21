@@ -197,26 +197,29 @@ class SeasonalForecastHandler():
 
         df = pd.DataFrame([ob.__dict__ for ob in result])
 
-        if(self.total_sum_value):
+        if (self.total_sum_value):
             df['diff'] = df.groupby('org_unit_id')['value'].transform(lambda x: x.diff())
-            # For the first month entry of each 'org_unit_id', we set the orginal value as the original value
+            
+            # for the first month entry of each 'org_unit_id', we set the orginal value as the original value
             df['diff'] = df['diff'].fillna(df['value'])
             df = df.drop(columns=['value'])
             df = df.rename(columns={'diff': 'value'})
 
-            #since the leadtime hour correspond amount of climate up to that hour, the previous month/week should be used
-            if(self.periode_type == "M"):
-                df['year_month'] = (df['date'] - pd.DateOffset(months=1)).dt.to_period(self.periode_type)
-            else:
-                df['year_month'] = (df['date'] - pd.DateOffset(weeks=1)).dt.to_period(self.periode_type)
+            # since the leadtime hour corresponds to the amount of climate up to that hour, the previous month/week should be used
+            if (self.periode_type == "M"):
+                df['period'] = (df['date'] - pd.DateOffset(months=1)).dt.to_period(self.periode_type)
+            elif (self.periode_type[0] == "W"):
+                df['period'] = (df['date'] - pd.DateOffset(weeks=1)).dt.to_period(self.periode_type[0])
+            elif (self.periode_type == "D"):
+                df['period'] = (df['date'] - pd.DateOffset(days=1)).dt.to_period(self.periode_type)
                 
-            df = df.groupby(['org_unit_id', 'year_month', 'org_unit_name'])['value'].mean().reset_index()
+            df = df.groupby(['org_unit_id', 'period', 'org_unit_name'])['value'].mean().reset_index()
 
         else:
-            df['year_month'] = df['date'].dt.to_period(self.periode_type)
-            df = df.groupby(['org_unit_id', 'year_month', 'org_unit_name'])['value'].mean().reset_index()
+            df['period'] = df['date'].dt.to_period(self.periode_type[0])
+            df = df.groupby(['org_unit_id', 'period', 'org_unit_name'])['value'].mean().reset_index()
 
-        df.sort_values(['org_unit_id', 'year_month'], inplace=True)
+        df.sort_values(['org_unit_id', 'period'], inplace=True)
 
         print(df)
 

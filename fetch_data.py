@@ -25,6 +25,7 @@ class FetchCopernicusDataConfig(BaseModel):
     periode_type : str = "M" or "W-MON" or "D" or "W-SUN"
     skip_download : bool = False
     forecast_issued : np.datetime64
+    forecast_length : int
 
 indicator_dict = {
     "2m_temperature" : "t2m",
@@ -58,6 +59,7 @@ class FetchCopernicusData():
         self.indicator = config.indicator
         self.skip_download = config.skip_download
         self.forecast_issued = config.forecast_issued
+        self.forecast_length = config.forecast_length
 
     def get_data(self):
         
@@ -77,7 +79,7 @@ class FetchCopernicusData():
             raise Exception("No configuration found for the given originating centre and variable")
         
         if len(config) > 1:
-            raise Exception("Provied combination or originating centre and variable returned more than one result. Check forecast_sources.json file for duplicates.")
+            raise Exception("Provided combination or originating centre and variable returned more than one result. Check forecast_sources.json file for duplicates.")
 
         return config[0]
     
@@ -104,31 +106,27 @@ class FetchCopernicusData():
         sfh = SeasonalForecastHandler(config=config)
         sfh.calculate()
 
-    #This only support precipitation for monthly data for now
-    def _get_leadtime_hours_for_sum_indicator(self, dataset_starting_date : np.datetime64, maximum_lead_time_hours : int):
-
-        lead_time_out_of_range = False
-        temp_date = dataset_starting_date
+    def _get_leadtime_hours(self, period_type : str, dataset_starting_date : np.datetime64, forecast_length : int):
+        '''
+        Returns list of hours since starting date into the future to forecast, at intervals specified by period type.
+        '''
         lead_time_hours = []
+        np_period_type = period_type[0] # first char is enough
+        current_date = np.datetime64(dataset_starting_date, np_period_type)
 
-        while(not lead_time_out_of_range):
-            current_date = np.datetime64(temp_date, 'M')
-            start_date_next_period = current_date + np.timedelta64(1, 'M')
+        while len(lead_time_hours) < forecast_length:
+            start_date_next_period = current_date + np.timedelta64(1, np_period_type)
 
             next_date = np.datetime64(f'{start_date_next_period.item().year}-{start_date_next_period.item().month:02d}-01')
 
-            #calculate the number of days to the next period, minus one, since we want last day in previous period
-            number_of_days_to_next_period = next_date.astype('int') - dataset_starting_date.astype('int')# - 1
+            number_of_days_since_starting_date = next_date.astype('int') - dataset_starting_date.astype('int')
 
-            print(number_of_days_to_next_period)
+            print(number_of_days_since_starting_date)
 
-            lead_time_hour = 24 * int(number_of_days_to_next_period)
+            lead_time_hour = 24 * int(number_of_days_since_starting_date)
 
-            if(lead_time_hour > maximum_lead_time_hours):
-                lead_time_out_of_range = True
-            else:
-                lead_time_hours.append(str(lead_time_hour))
-                temp_date = next_date
+            lead_time_hours.append(str(lead_time_hour))
+            current_date = next_date
 
         return lead_time_hours
     
@@ -173,13 +171,12 @@ class FetchCopernicusData():
 
         request_dataset_issued : np.datetime64 = self._get_dataset_issued_date(self.forecast_issued)
 
-        if(is_value_type_sum):
-            request_config["leadtime_hour"] = self._get_leadtime_hours_for_sum_indicator(request_dataset_issued, int(request_config["max_leadtime_hour"]))
+        request_config['leadtime_hour'] = self._get_leadtime_hours(self.periode_type, request_dataset_issued, self.forecast_length)
 
         request_body = self.create_request_body(request_config, bounding_box, request_dataset_issued)
         print(request_body)
         
-        if not skip_download:      
+        if not skip_download:
             copernicus_client.retrieve('seasonal-original-single-levels', request_body, f'{self.grib_file_name}')
             self._convert_from_grib_to_netcdf()
 
@@ -226,36 +223,45 @@ if __name__ == "__main__":
               Usage: python fetch_data.py [file_path] [indicator] [skipDownload] \n\n 
               • file_path:                  path to geojson-file\n 
               • indicator:                  '2m_temperature' or 'total_precipitation'\n 
-              • (optional) skipDownload:    skip download of netCDF-file from Copernicus, useful when you already have the file downloaded. (True/False)\n
+              • periodType:                 'M' or 'W-MON' or 'D'\n 
               • (optional) date:            date of forecast issued, format 'YYYY-MM-DD' default is today\n
+              • (optional) forecastLength:  how far into the future to fetch forecast for, default is 3 months, 8 weeks, or 14 days
+              • (optional) skipDownload:    skip download of netCDF-file from Copernicus, useful when you already have the file downloaded. (True/False)\n
               
-              example: python fetch_data.py data/orgUnitsSingleSierra.geojson total_precipitation True
+              example: python fetch_data.py data/orgUnitsSingleSierra.geojson total_precipitation M
               """)
         sys.exit(1)
 
+    # get cmd args
+
     file_path = sys.argv[1]
     indicator = sys.argv[2]
-
-    try:
-        skip_download = sys.argv[3]
-    except (IndexError):
-        skip_download = False
+    period_type = sys.argv[3]
 
     try:
         forecast_issued = np.datetime64(sys.argv[4], 'D')
     except (IndexError):
         forecast_issued = np.datetime64('today', 'D')
 
+    try:
+        forecast_length = sys.argv[5]
+    except (IndexError):
+        forecast_length = {'M':3, 'W':8, 'D':14}[period_type[0]]
+
+    try:
+        skip_download = sys.argv[6]
+    except (IndexError):
+        skip_download = False
+
+    # load geojson features
     with open(file_path) as file:
         geojson_data = json.load(file)
-
     features = geojson_data['features']
 
-
-    #find filename
+    # find filename
     file_name_geojson = os.path.splitext(os.path.basename(file_path))[0]
 
-    # Create directories if they do not exist
+    # create directories if they do not exist
     if not os.path.exists("grib"):
         os.makedirs("grib")
 
@@ -269,7 +275,8 @@ if __name__ == "__main__":
         periode_type="M",
         indicator=indicator,
         skip_download=skip_download,
-        forecast_issued=forecast_issued
+        forecast_issued=forecast_issued,
+        forecast_length=forecast_length,
     )
 
     fetch_data = FetchCopernicusData(config)
