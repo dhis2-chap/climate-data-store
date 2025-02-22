@@ -3,13 +3,17 @@ from typing import List
 import cdsapi
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 import xarray as xr
 from shapely.geometry import shape
 from forecast_sources import ECMWF, uk_met_office
 from seasonal import SeasonalForecastHandler, SeasonalForecastHandlerConfig
+from datetime import datetime, date
+import logging
 import sys
 import os
+
+logging.basicConfig(level=logging.DEBUG)
 
 file_name_base = "seasonal-forecast"
 
@@ -26,6 +30,22 @@ class FetchCopernicusDataConfig(BaseModel):
     skip_download : bool = False
     forecast_issued : np.datetime64
     forecast_length : int
+
+    @model_validator(mode='before')
+    def coerce_input_types(cls, data):
+        # default datetime to today
+        if not data.get('forecast_issued', None):
+            data['forecast_issued'] = np.datetime64('today')
+
+        # coerce to np datetime
+        else:
+            data['forecast_issued'] = np.datetime64(data['forecast_issued'])
+
+        # default forecast length depending on period type
+        if not data.get('forecast_length', None):
+            data['forecast_length'] = {'M':3, 'W':8, 'D':14}[data['period_type'][0]]
+
+        return data
 
 indicator_dict = {
     "2m_temperature" : "t2m",
@@ -65,7 +85,7 @@ class FetchCopernicusData():
         
         request_config = self._get_request_config_for_originating_centre(self.indicator)
 
-        self.fetch_data(request_config, is_value_type_sum=(self.indicator == "total_precipitation"), skip_download=self.skip_download)
+        self.fetch_data(request_config, is_value_type_sum=is_total_sum_value[self.indicator], skip_download=self.skip_download)
         
         self._calculate_per_period_and_time(indicator_dict[self.indicator])
 
@@ -89,7 +109,6 @@ class FetchCopernicusData():
         
         config = [source for source in sources if source['originating_centre'] == self.originating_centre and source['variable'][0] == variable]
         return self._validate_config(config)
-       
 
     def _calculate_per_period_and_time(self, variable):
 
@@ -106,8 +125,24 @@ class FetchCopernicusData():
         sfh = SeasonalForecastHandler(config=config)
         sfh.calculate()
 
-    def _get_leadtime_hours(self, period_type : str, dataset_starting_date : np.datetime64, forecast_length : int):
+    def _get_snapshot_leadtime_hours(self, dataset_starting_date : np.datetime64, forecast_length : int, period_type : str, leadtime_interval : int):
         '''
+        Getting all necessary leadtime hours when the forecast represents snapshot valuse (eg temperature).
+        All available leadtime hours are required since we need to calculate some aggregate statistics for a given period. 
+        '''
+        lead_time_hours = []
+        lead_time_hour = 0
+        forecast_length_hours = np.timedelta64(forecast_length, period_type[0]).astype('timedelta64[h]').astype(int)
+
+        while lead_time_hour < forecast_length_hours:
+            lead_time_hour += leadtime_interval
+            lead_time_hours.append(str(lead_time_hour))
+
+        return lead_time_hours
+
+    def _get_cumulative_leadtime_hours(self, dataset_starting_date : np.datetime64, forecast_length : int, period_type : str):
+        '''
+        Getting only the necessary leadtime hours when the forecast represents cumulative valuse (eg precipitaiton).
         Returns list of hours since starting date into the future to forecast, at intervals specified by period type.
         '''
         lead_time_hours = []
@@ -162,14 +197,19 @@ class FetchCopernicusData():
     def fetch_data(self, request_config, is_value_type_sum=False, skip_download=False):
         copernicus_client = cdsapi.Client()
 
-        #add the bouding box to the request
+        # add the bounding box to the request
         bounding_box = self._getBoundingBox(self.features)
-
         print("bounding box: ",  bounding_box.model_dump())
 
         request_dataset_issued : np.datetime64 = self._get_dataset_issued_date(self.forecast_issued)
 
-        request_config['leadtime_hour'] = self._get_leadtime_hours(self.period_type, request_dataset_issued, self.forecast_length)
+        if is_total_sum_value[self.indicator]:
+            # cumulative forecast, only requires leadtime hours between each period type
+            request_config['leadtime_hour'] = self._get_cumulative_leadtime_hours(request_dataset_issued, self.forecast_length, self.period_type)
+        else:
+            # snapshot forecast, requires all available leadtime hours to calculate aggregate stats
+            leadtime_interval = 6 # hardcoded to 2m temperature for now
+            request_config['leadtime_hour'] = self._get_snapshot_leadtime_hours(request_dataset_issued, self.forecast_length, self.period_type, leadtime_interval)
 
         request_body = self.create_request_body(request_config, bounding_box, request_dataset_issued)
         print(request_body)

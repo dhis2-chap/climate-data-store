@@ -179,13 +179,13 @@ class SeasonalForecastHandler():
 
         result : List[PointValue] = []
         
-        #loop over every featrue
+        # loop over every featrue
         for f in self.features:
 
-            #crop dataset to this feature
+            # crop dataset to this feature
             cropped_ds = self.crop_dataset(ds, self.variable, f,)
 
-            #for every time-step
+            # for every time-step
             for i in range(len(ds.step)):
                 r = self._get_mean_value_for_dimension_for_step_for_geometry(
                     cropped_ds=cropped_ds,
@@ -198,6 +198,7 @@ class SeasonalForecastHandler():
         df = pd.DataFrame([ob.__dict__ for ob in result])
 
         if (self.total_sum_value):
+            # the values at leadtime hour are cumulative, so have to take the current value minus the previous value
             df['diff'] = df.groupby('org_unit_id')['value'].transform(lambda x: x.diff())
             
             # for the first month entry of each 'org_unit_id', we set the orginal value as the original value
@@ -223,7 +224,11 @@ class SeasonalForecastHandler():
 
         print(df)
 
-        df.to_csv(f"results/result_{datetime.today().strftime('%Y%m%d-%H-%M-%S')}_{self.variable}_{self.output_file_postfix}.csv",  sep=";")
+        df.to_csv(
+            f"results/result_{datetime.today().strftime('%Y%m%d-%H-%M-%S')}_{self.variable}_{self.output_file_postfix}.csv",  
+            sep=";",
+            index=False
+        )
 
             
 if __name__ == "__main__":
