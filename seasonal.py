@@ -23,7 +23,6 @@ class PeriodValue(BaseModel):
     nameOfPeriod : str
     value : float
 
-
 class PointValue(BaseModel):
 
     class Config:
@@ -40,7 +39,6 @@ class SeasonalForecastHandlerConfig(BaseModel):
     features : List[object]
     period_type : str = "M" or "W-MON" or "D" or "W-SUN"
     aggregation_method : str = "mean" or "sum" or "max" or "min"
-    output_file_postfix : str = ""
     measurement_unit : str = "kelvin" or "m"
     total_sum_value : bool = False
 
@@ -61,7 +59,6 @@ class SeasonalForecastHandler():
         self.features = config.features
         self.period_type = config.period_type
         self.aggregation_method = config.aggregation_method
-        self.output_file_postfix = config.output_file_postfix
         self.measurement_unit = config.measurement_unit
         self.total_sum_value = config.total_sum_value
 
@@ -224,11 +221,7 @@ class SeasonalForecastHandler():
 
         print(df)
 
-        df.to_csv(
-            f"results/result_{datetime.today().strftime('%Y%m%d-%H-%M-%S')}_{self.variable}_{self.output_file_postfix}.csv",  
-            sep=";",
-            index=False
-        )
+        return df
 
             
 if __name__ == "__main__":
