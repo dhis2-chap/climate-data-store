@@ -35,7 +35,7 @@ class PointValue(BaseModel):
 
 class SeasonalForecastHandlerConfig(BaseModel):
     variable : str
-    netcdf_file_name : str
+    netcdf_file : str
     features : List[object]
     period_type : str = "M" or "W-MON" or "D" or "W-SUN"
     aggregation_method : str = "mean" or "sum" or "max" or "min"
@@ -55,7 +55,7 @@ class SeasonalForecastHandler():
 
     def __init__(self, config : SeasonalForecastHandlerConfig):
         self.variable = config.variable
-        self.netcdf_file_name = config.netcdf_file_name
+        self.netcdf_file = config.netcdf_file
         self.features = config.features
         self.period_type = config.period_type
         self.aggregation_method = config.aggregation_method
@@ -160,10 +160,10 @@ class SeasonalForecastHandler():
     def calculate(self):
 
         # open the seasonal forecast file downloaded from copernicus
-        ds = xr.open_dataset(self.netcdf_file_name)
+        ds = xr.open_dataset(self.netcdf_file)
 
         print("\n--- STATS ---")
-        print(f"reading ds file {self.netcdf_file_name}")
+        print(f"reading ds file {self.netcdf_file}")
         print("number of datapoints: "+str(len(ds.longitude.values)*len(ds.latitude.values)))
         print("number of time-steps: "+str(len(ds.step)))
         print("number of ensembles: "+str(len(ds.number)))

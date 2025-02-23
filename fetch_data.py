@@ -13,12 +13,19 @@ from calendar import monthrange
 import logging
 import sys
 import os
+import json
+import hashlib
 from pathlib import Path
 
 logging.basicConfig(level=logging.DEBUG)
 
 DEFAULT_OUTPUT_FOLDER = Path(__file__).parent
-FILE_NAME_BASE = "seasonal-forecast"
+
+def generate_file_name_base(obj):
+    obj_string = json.dumps(obj).encode('utf8')
+    obj_hash = hashlib.md5(obj_string).hexdigest()
+    print('generating file name base from input args:', obj_string, '->', obj_hash)
+    return obj_hash
 
 class FetchCopernicusDataConfig(BaseModel):
 
@@ -29,9 +36,8 @@ class FetchCopernicusDataConfig(BaseModel):
     features : List[object]
     indicator : str = "2m_temperature" or "total_precipitation"
     output_folder : str = DEFAULT_OUTPUT_FOLDER
-    file_name_postfix : str = ""
+    file_name_postfix : str = ""  # NOTE: applies to result file only
     period_type : str = "M" or "W-MON" or "D" or "W-SUN"
-    skip_download : bool = False
     forecast_issued : datetime
     forecast_length : int
 
@@ -90,22 +96,29 @@ class FetchCopernicusData():
         self.originating_centre = config.originating_centre
         self.features = config.features
         self.output_folder = config.output_folder
-        self.grib_file_name = f"grib/{FILE_NAME_BASE}{config.file_name_postfix}.grib"
-        self.netcdf_file_name = f"netcdf/{FILE_NAME_BASE}{config.file_name_postfix}.nc"
+        self.file_name_postfix = config.file_name_postfix
         self.period_type = config.period_type
         self.indicator = config.indicator
-        self.skip_download = config.skip_download
         self.forecast_issued = config.forecast_issued
         self.forecast_length = config.forecast_length
 
+    def check_output_folders(self):
+        Path(f'{self.output_folder}/grib').mkdir(parents=True, exist_ok=True)
+        Path(f'{self.output_folder}/netcdf').mkdir(parents=True, exist_ok=True)
+        Path(f'{self.output_folder}/results').mkdir(parents=True, exist_ok=True)
+
     def get_data(self):
-        
+        # init
+        self.check_output_folders()
         request_config = self._get_request_config_for_originating_centre(self.indicator)
 
-        self.fetch_data(request_config, is_value_type_sum=is_total_sum_value[self.indicator], skip_download=self.skip_download)
+        # download data
+        self.fetch_data(request_config)
         
+        # calculate results
         df = self._calculate_per_period_and_time(indicator_dict[self.indicator])
 
+        # save
         self._save_calculated_results(df)
 
     def _convert_from_grib_to_netcdf(self):
@@ -132,7 +145,7 @@ class FetchCopernicusData():
     def _calculate_per_period_and_time(self, variable):
 
         config = SeasonalForecastHandlerConfig(
-            netcdf_file_name=self.netcdf_file_name,
+            netcdf_file=f'{self.output_folder}/{self.netcdf_file_name}',
             variable=variable,
             features=self.features,
             period_type=self.period_type,
@@ -146,7 +159,7 @@ class FetchCopernicusData():
     
     def _save_calculated_results(self, df):
         df.to_csv(
-            f"{self.output_folder}/results/result_{datetime.today().strftime('%Y%m%d-%H-%M-%S')}_{self.variable}_{self.originating_centre}.csv",  
+            f"{self.output_folder}/{self.results_file_name}",  
             sep=";",
             index=False
         )
@@ -231,7 +244,7 @@ class FetchCopernicusData():
             # datasets are always issued for the 1st of each month
             return datetime(issued_date.year, issued_date.month, 1)
 
-    def fetch_data(self, request_config, is_value_type_sum=False, skip_download=False):
+    def fetch_data(self, request_config):
         copernicus_client = cdsapi.Client(timeout=300, quiet=False)
 
         # add the bounding box to the request
@@ -248,12 +261,24 @@ class FetchCopernicusData():
             leadtime_interval = 6 # hardcoded to 2m temperature for now
             request_config['leadtime_hour'] = self._get_snapshot_leadtime_hours(request_dataset_issued, self.forecast_length, self.period_type, leadtime_interval)
 
+        # set api request params
         request_body = self.create_request_body(request_config, bounding_box, request_dataset_issued)
         print(request_body)
-        
-        if not skip_download:
+
+        # determine file names based on input
+        self.file_name_base = generate_file_name_base(request_body)
+        self.grib_file_name = f"grib/{self.file_name_base}.grib"
+        self.netcdf_file_name = f"netcdf/{self.file_name_base}.nc"
+        self.results_file_name = f"results/{self.file_name_base}{self.file_name_postfix}.csv"
+
+        # only fetch data if not previously downloaded
+        if not os.path.exists(f'{self.output_folder}/{self.netcdf_file_name}'):
+            print('downloading data')
             copernicus_client.retrieve('seasonal-original-single-levels', request_body, f'{self.output_folder}/{self.grib_file_name}')
             self._convert_from_grib_to_netcdf()
+        
+        else:
+            print('data download already exists, skipping')
 
     def _getBoundingBox(self, features) -> BoundingBox:
         north = -90
@@ -301,8 +326,7 @@ if __name__ == "__main__":
               • periodType:                 'M' or 'W-MON' or 'D'\n 
               • (optional) date:            date of forecast issued, format 'YYYY-MM-DD' default is today\n
               • (optional) forecastLength:  how far into the future to fetch forecast for, default is 3 months, 8 weeks, or 14 days
-              • (optional) skipDownload:    skip download of netCDF-file from Copernicus, useful when you already have the file downloaded. (True/False)\n
-              
+
               example: python fetch_data.py data/orgUnitsSingleSierra.geojson total_precipitation M
               """)
         sys.exit(1)
@@ -323,11 +347,6 @@ if __name__ == "__main__":
     except (IndexError):
         forecast_length = None
 
-    try:
-        skip_download = sys.argv[6]
-    except (IndexError):
-        skip_download = False
-
     # load geojson features
     with open(file_path) as file:
         geojson_data = json.load(file)
@@ -339,30 +358,18 @@ if __name__ == "__main__":
     # get output folder as cmd working dir
     output_dir = os.pwd()
 
-    # create directories if they do not exist
-    grib_dir = f"{output_dir}/grib"
-    if not os.path.exists(grib_dir):
-        os.makedirs(grib_dir)
-
-    netcdf_dir = f"{output_dir}/netcdf"
-    if not os.path.exists(netcdf_dir):
-        os.makedirs(netcdf_dir)
-
-    results_dir = f"{output_dir}/results"
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
-
+    # create config
     config = FetchCopernicusDataConfig(
         originating_centre="ecmwf",
         features=features,
         file_name_postfix="-"+file_name_geojson,
         period_type="M",
         indicator=indicator,
-        skip_download=skip_download,
         forecast_issued=forecast_issued,
         forecast_length=forecast_length,
     )
 
+    # get data
     fetch_data = FetchCopernicusData(config)
     fetch_data.get_data()
 

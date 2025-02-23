@@ -12,9 +12,8 @@ if __name__ == '__main__':
         originating_centre="ecmwf",
         features=features,
         file_name_postfix="-debug",
-        period_type="D",
+        period_type="M",
         indicator='total_precipitation', #'2m_temperature',
-        #skip_download=False,
         #forecast_issued=None,
         #forecast_length=None,
     )
