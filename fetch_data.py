@@ -8,7 +8,8 @@ import xarray as xr
 from shapely.geometry import shape
 from forecast_sources import ECMWF, uk_met_office
 from seasonal import SeasonalForecastHandler, SeasonalForecastHandlerConfig
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+from calendar import monthrange
 import logging
 import sys
 import os
@@ -28,18 +29,18 @@ class FetchCopernicusDataConfig(BaseModel):
     file_name_postfix : str = ""
     period_type : str = "M" or "W-MON" or "D" or "W-SUN"
     skip_download : bool = False
-    forecast_issued : np.datetime64
+    forecast_issued : datetime
     forecast_length : int
 
     @model_validator(mode='before')
     def coerce_input_types(cls, data):
         # default datetime to today
         if not data.get('forecast_issued', None):
-            data['forecast_issued'] = np.datetime64('today')
+            data['forecast_issued'] = datetime.today()
 
-        # coerce to np datetime
-        else:
-            data['forecast_issued'] = np.datetime64(data['forecast_issued'])
+        # create datetime from str
+        elif isinstance(data['forecast_issued'], str):
+            data['forecast_issued'] = datetime.fromisoformat(data['forecast_issued'])
 
         # default forecast length depending on period type
         if not data.get('forecast_length', None):
@@ -61,6 +62,18 @@ is_total_sum_value =  {
     "2m_temperature" : False,
     "total_precipitation" : True
 }
+
+def increment_months(start_date, months):
+    # Compute the total number of months since year 0
+    total_months = start_date.year * 12 + (start_date.month - 1) + months
+    new_year = total_months // 12
+    new_month = total_months % 12 + 1
+
+    # Handle end-of-month cases by adjusting the day if necessary
+    last_day_of_new_month = monthrange(new_year, new_month)[1]
+    new_day = min(start_date.day, last_day_of_new_month)
+
+    return datetime(new_year, new_month, new_day)
 
 class BoundingBox(BaseModel):
     north: float
@@ -125,14 +138,22 @@ class FetchCopernicusData():
         sfh = SeasonalForecastHandler(config=config)
         sfh.calculate()
 
-    def _get_snapshot_leadtime_hours(self, dataset_starting_date : np.datetime64, forecast_length : int, period_type : str, leadtime_interval : int):
+    def _get_snapshot_leadtime_hours(self, dataset_starting_date : datetime, forecast_length : int, period_type : str, leadtime_interval : int):
         '''
         Getting all necessary leadtime hours when the forecast represents snapshot valuse (eg temperature).
         All available leadtime hours are required since we need to calculate some aggregate statistics for a given period. 
         '''
         lead_time_hours = []
         lead_time_hour = 0
-        forecast_length_hours = np.timedelta64(forecast_length, period_type[0]).astype('timedelta64[h]').astype(int)
+
+        if period_type == 'M':
+            dataset_ending_date = increment_months(dataset_starting_date, forecast_length)
+        elif period_type[0] == 'W':
+            dataset_ending_date = dataset_starting_date + timedelta(weeks=forecast_length)
+        elif period_type == 'D':
+            dataset_ending_date = dataset_starting_date + timedelta(days=forecast_length)
+        
+        forecast_length_hours = (dataset_ending_date - dataset_starting_date).days * 24
 
         while lead_time_hour < forecast_length_hours:
             lead_time_hour += leadtime_interval
@@ -140,19 +161,23 @@ class FetchCopernicusData():
 
         return lead_time_hours
 
-    def _get_cumulative_leadtime_hours(self, dataset_starting_date : np.datetime64, forecast_length : int, period_type : str):
+    def _get_cumulative_leadtime_hours(self, dataset_starting_date : datetime, forecast_length : int, period_type : str):
         '''
         Getting only the necessary leadtime hours when the forecast represents cumulative valuse (eg precipitaiton).
         Returns list of hours since starting date into the future to forecast, at intervals specified by period type.
         '''
         lead_time_hours = []
-        np_period_type = period_type[0] # first char is enough
-        current_date = np.datetime64(dataset_starting_date, np_period_type)
+        current_date = dataset_starting_date
 
         while len(lead_time_hours) < forecast_length:
-            next_date = current_date + np.timedelta64(1, np_period_type)
+            if period_type == 'M':
+                next_date = increment_months(current_date, 1)
+            elif period_type[0] == 'W':
+                next_date = current_date + timedelta(weeks=1)
+            elif period_type == 'D':
+                next_date = current_date + timedelta(days=1)
 
-            number_of_days_since_starting_date = (next_date - dataset_starting_date).astype('timedelta64[D]').astype(int)
+            number_of_days_since_starting_date = (next_date - dataset_starting_date).days
 
             print(number_of_days_since_starting_date)
 
@@ -163,36 +188,35 @@ class FetchCopernicusData():
 
         return lead_time_hours
     
-    def create_request_body(self, request_config, bounding_box : BoundingBox, request_dataset_issued : np.datetime64):
+    def create_request_body(self, request_config, bounding_box : BoundingBox, request_dataset_issued : datetime):
         return {
             "originating_centre": request_config["originating_centre"],
             "data_format": request_config["data_format"], 
             "variable": request_config["variable"],
             "system": str(request_config["system"]),
-            "year": [str(request_dataset_issued.item().year)],
-            "month": [str(request_dataset_issued.item().month)] if (request_dataset_issued.item().month > 9) else ["0"+str(request_dataset_issued.item().month)],
-            "day": ["01"],#[str(request_dataset_issued.item().day)],
+            "year": [str(request_dataset_issued.year)],
+            "month": [str(request_dataset_issued.month).zfill(2)],
+            "day": ["01"],
             "leadtime_hour": request_config["leadtime_hour"],
             "area":  [bounding_box.north, bounding_box.west, bounding_box.south, bounding_box.east],
         }
 
-    def _get_dataset_issued_date(self, issued_date : np.datetime64) -> np.datetime64:
-        today = np.datetime64('today')
+    def _get_dataset_issued_date(self, issued_date : datetime) -> datetime:
+        today = datetime.today()
 
-        if issued_date.item().year == today.item().year & issued_date.item().month == today.item().month:
+        if issued_date.year == today.year & issued_date.month == today.month:
             # requesting latest available dataset (same as current month)
-            if today.item().day > 11:
+            if today.day > 11:
                 # we have passed the 11th of the current month, which means the current month dataset should be available 
-                return np.datetime64(f'{today.item().year}-{today.item().month:02d}-01', "D")
+                return datetime(today.year, today.month, 1)
             else:
                 # current month's dataset isn't available until after 11th, revert to the previous month's dataset instead
-                current_month = np.datetime64(today, 'M')
-                previous_month = current_month - np.timedelta64(1, 'M')
-                return np.datetime64(f'{previous_month.item().year}-{previous_month.item().month:02d}-01', "D")
+                previous_month = increment_months(today, -1)
+                return datetime(previous_month.year, previous_month.month, 1)
         else:
             # requesting dataset from a historical month
             # datasets are always issued for the 1st of each month
-            return np.datetime64(f'{today.item().year}-{today.item().month:02d}-01', "D")
+            return datetime(issued_date.year, issued_date.month, 1)
 
     def fetch_data(self, request_config, is_value_type_sum=False, skip_download=False):
         copernicus_client = cdsapi.Client()
@@ -201,7 +225,7 @@ class FetchCopernicusData():
         bounding_box = self._getBoundingBox(self.features)
         print("bounding box: ",  bounding_box.model_dump())
 
-        request_dataset_issued : np.datetime64 = self._get_dataset_issued_date(self.forecast_issued)
+        request_dataset_issued : datetime = self._get_dataset_issued_date(self.forecast_issued)
 
         if is_total_sum_value[self.indicator]:
             # cumulative forecast, only requires leadtime hours between each period type
@@ -277,14 +301,14 @@ if __name__ == "__main__":
     period_type = sys.argv[3]
 
     try:
-        forecast_issued = np.datetime64(sys.argv[4], 'D')
+        forecast_issued = sys.argv[4]
     except (IndexError):
-        forecast_issued = np.datetime64('today', 'D')
+        forecast_issued = None
 
     try:
         forecast_length = sys.argv[5]
     except (IndexError):
-        forecast_length = {'M':3, 'W':8, 'D':14}[period_type[0]]
+        forecast_length = None
 
     try:
         skip_download = sys.argv[6]

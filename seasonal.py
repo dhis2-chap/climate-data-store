@@ -72,7 +72,7 @@ class SeasonalForecastHandler():
     def m_to_mm(self, value):
         return value * 1000
 
-    def _group_by_moth(self, df : List[PointValue]):
+    def _group_by_month(self, df : List[PointValue]):
         
         df['date'] = pd.to_datetime(df['date'])
 
