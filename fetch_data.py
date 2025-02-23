@@ -6,7 +6,6 @@ import pandas as pd
 from pydantic import BaseModel, model_validator
 import xarray as xr
 from shapely.geometry import shape
-from forecast_sources import ECMWF, uk_met_office
 from seasonal import SeasonalForecastHandler, SeasonalForecastHandlerConfig
 from datetime import datetime, date, timedelta
 from calendar import monthrange
@@ -19,7 +18,8 @@ from pathlib import Path
 
 logging.basicConfig(level=logging.DEBUG)
 
-DEFAULT_OUTPUT_FOLDER = Path(__file__).parent
+SCRIPT_DIR = Path(__file__).parent
+DEFAULT_OUTPUT_FOLDER = SCRIPT_DIR
 
 def generate_hash(obj):
     obj_string = json.dumps(obj).encode('utf8')
@@ -136,7 +136,7 @@ class FetchCopernicusData():
         return config[0]
     
     def _get_request_config_for_originating_centre(self, variable: str):
-        with open("forecast_sources.json") as file:
+        with open(f"{SCRIPT_DIR}/forecast_sources.json") as file:
             sources = json.load(file)
         
         config = [source for source in sources if source['originating_centre'] == self.originating_centre and source['variable'][0] == variable]
