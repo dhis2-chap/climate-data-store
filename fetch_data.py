@@ -21,10 +21,10 @@ logging.basicConfig(level=logging.DEBUG)
 
 DEFAULT_OUTPUT_FOLDER = Path(__file__).parent
 
-def generate_file_name_base(obj):
+def generate_hash(obj):
     obj_string = json.dumps(obj).encode('utf8')
-    obj_hash = hashlib.md5(obj_string).hexdigest()
-    print('generating file name base from input args:', obj_string, '->', obj_hash)
+    obj_hash = hashlib.sha1(obj_string).hexdigest()[:12] # truncated for shorter hash
+    print('generating hash from object:', obj_string, '->', obj_hash)
     return obj_hash
 
 class FetchCopernicusDataConfig(BaseModel):
@@ -265,11 +265,13 @@ class FetchCopernicusData():
         request_body = self.create_request_body(request_config, bounding_box, request_dataset_issued)
         print(request_body)
 
-        # determine file names based on input
-        self.file_name_base = generate_file_name_base(request_body)
+        # determine file names based on request input
+        request_hash = generate_hash(request_body)
+        self.file_name_base = f'request_hash_{request_hash}'
         self.grib_file_name = f"grib/{self.file_name_base}.grib"
         self.netcdf_file_name = f"netcdf/{self.file_name_base}.nc"
-        self.results_file_name = f"results/{self.file_name_base}{self.file_name_postfix}.csv"
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        self.results_file_name = f"results/result_{timestamp}_{self.file_name_base}{self.file_name_postfix}.csv"
 
         # only fetch data if not previously downloaded
         if not os.path.exists(f'{self.output_folder}/{self.netcdf_file_name}'):
