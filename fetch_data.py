@@ -219,7 +219,7 @@ class FetchCopernicusData():
             return datetime(issued_date.year, issued_date.month, 1)
 
     def fetch_data(self, request_config, is_value_type_sum=False, skip_download=False):
-        copernicus_client = cdsapi.Client()
+        copernicus_client = cdsapi.Client(timeout=300, quiet=False)
 
         # add the bounding box to the request
         bounding_box = self._getBoundingBox(self.features)
