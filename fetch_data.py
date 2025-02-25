@@ -30,7 +30,7 @@ class FetchCopernicusDataConfig(BaseModel):
     features : List[object]
     indicator : str = "2m_temperature" or "total_precipitation"
     output_folder : str = DEFAULT_OUTPUT_FOLDER
-    file_name_postfix : str = ""  # NOTE: applies to result file only
+    file_name_postfix : str = ""
     year : int
     max_forecast_hours : int = 6 * 31 * 24  # default is 6x 31-day months in hours
 
@@ -82,7 +82,6 @@ class FetchCopernicusData():
     def check_output_folders(self):
         Path(f'{self.output_folder}/grib').mkdir(parents=True, exist_ok=True)
         Path(f'{self.output_folder}/netcdf').mkdir(parents=True, exist_ok=True)
-        Path(f'{self.output_folder}/results').mkdir(parents=True, exist_ok=True)
 
     def get_data(self):
         # init
@@ -196,9 +195,8 @@ class FetchCopernicusData():
         request_body = self.create_request_body(request_config, bounding_box, self.year)
         print(request_body)
 
-        # determine file names based on request input
-        request_hash = generate_hash(request_body)
-        self.file_name_base = f'request_hash_{request_hash}'
+        # determine file names based on inputs
+        self.file_name_base = f'{self.originating_centre}_{self.indicator}_{self.year}'
         self.grib_file_name = f"grib/{self.file_name_base}{self.file_name_postfix}.grib"
         self.netcdf_file_name = f"netcdf/{self.file_name_base}{self.file_name_postfix}.nc"
 
