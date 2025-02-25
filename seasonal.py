@@ -13,11 +13,14 @@ from shapely.geometry import shape
 import rioxarray
 import geojson
 import shapely
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from pydantic.json_schema import JsonSchemaValue
 from shapely import LineString, MultiPoint, Polygon
 import matplotlib.pyplot as plt
 from dateutil.relativedelta import relativedelta
+from datetime import timedelta
+
+from utils import increment_months
 
 class PeriodValue(BaseModel):
     nameOfPeriod : str
@@ -37,11 +40,20 @@ class SeasonalForecastHandlerConfig(BaseModel):
     variable : str
     netcdf_file : str
     features : List[object]
+    forecast_date : datetime
     period_type : str = "M" or "W-MON" or "D" or "W-SUN"
+    period_count : int  # number of periods to forecast as defined by period_type
     aggregation_method : str = "mean" or "sum" or "max" or "min"
     measurement_unit : str = "kelvin" or "m"
     total_sum_value : bool = False
 
+    @model_validator(mode='before')
+    def coerce_input_types(cls, data):
+        # default period count depending on period type
+        if not data.get('period_count', None):
+            data['period_count'] = {'D':14, 'W':8, 'M':3}[data['period_type']]
+
+        return data
 
 converters = {
     "K" : lambda x: x - 273.15, #converts kelvin to celsius
@@ -57,11 +69,12 @@ class SeasonalForecastHandler():
         self.variable = config.variable
         self.netcdf_file = config.netcdf_file
         self.features = config.features
+        self.forecast_date = config.forecast_date
         self.period_type = config.period_type
+        self.period_count = config.period_count
         self.aggregation_method = config.aggregation_method
         self.measurement_unit = config.measurement_unit
         self.total_sum_value = config.total_sum_value
-
 
     def kelvin_to_celsius(self, value):
         return value - 273.15
@@ -116,13 +129,11 @@ class SeasonalForecastHandler():
 
         return cropped_ds
         
-
-    def crop_dataset(self, ds, variable : str, feature):
-
-        try:      
+    def _crop_dataset(self, ds, variable : str, feature):
+        try:
             geometry = feature["geometry"]
 
-            #croppe_ds would be a three-dimensional array
+            #cropped_ds would be a three-dimensional array
             #the first dimension is the ensembles, the second dimension represent each time step, the third dimension contain a 1-item array with the value for the given step
             cropped_ds : xr.core.dataarray.DataArray = ds[variable].rio.clip(geometries=[geometry])
        
@@ -137,12 +148,59 @@ class SeasonalForecastHandler():
         except rioxarray.exceptions.NoDataInBounds as e:
             return self._find_nearest_point(feature["geometry"], ds, variable, feature['properties']['name'])
 
+    def _get_snapshot_leadtime_hours(self, dataset_starting_date : datetime, period_type : str, period_count : int, leadtime_interval : int):
+        '''
+        Getting all necessary leadtime hours when the forecast represents snapshot valuse (eg temperature).
+        All available leadtime hours are required since we need to calculate some aggregate statistics for a given period. 
+        '''
+        lead_time_hours = []
+        lead_time_hour = 0
 
-    def _get_mean_value_for_dimension_for_step_for_geometry(self, cropped_ds, feature, step : int, value_converter):
-    
+        if period_type == 'M':
+            dataset_ending_date = increment_months(dataset_starting_date, period_count)
+        elif period_type[0] == 'W':
+            dataset_ending_date = dataset_starting_date + timedelta(weeks=period_count)
+        elif period_type == 'D':
+            dataset_ending_date = dataset_starting_date + timedelta(days=period_count)
         
-        #returns all eseambles for the given step
-        points = cropped_ds.isel(step=step)
+        forecast_length_hours = (dataset_ending_date - dataset_starting_date).days * 24
+
+        while lead_time_hour < forecast_length_hours:
+            lead_time_hour += leadtime_interval
+            lead_time_hours.append(lead_time_hour)
+
+        return lead_time_hours
+
+    def _get_cumulative_leadtime_hours(self, dataset_starting_date : datetime, period_type : str, period_count : int):
+        '''
+        Getting only the necessary leadtime hours when the forecast represents cumulative values (eg precipitaiton).
+        Returns list of hours since starting date into the future to forecast, at intervals specified by period type.
+        '''
+        lead_time_hours = []
+        current_date = dataset_starting_date
+
+        while len(lead_time_hours) < period_count:
+            if period_type == 'M':
+                next_date = increment_months(current_date, 1)
+            elif period_type[0] == 'W':
+                next_date = current_date + timedelta(weeks=1)
+            elif period_type == 'D':
+                next_date = current_date + timedelta(days=1)
+
+            number_of_days_since_starting_date = (next_date - dataset_starting_date).days
+
+            print(number_of_days_since_starting_date)
+
+            lead_time_hour = 24 * int(number_of_days_since_starting_date)
+
+            lead_time_hours.append(lead_time_hour)
+            current_date = next_date
+
+        return lead_time_hours
+
+    def _get_mean_value_for_dimension_for_step_for_geometry(self, cropped_ds, feature, forecast_date : np.datetime64, step : int, value_converter):
+        #returns all eseambles for the given forecast date and step
+        points = cropped_ds.sel(time=forecast_date, step=step)
 
         #calculate the mean for all ensembles
         ensamble_mean = points.mean(keep_attrs=True)
@@ -151,14 +209,18 @@ class SeasonalForecastHandler():
             date = ensamble_mean.coords["valid_time"].values,
             value = value_converter(ensamble_mean),
             org_unit_id = str(feature["id"]),
-            org_unit_name= feature["properties"]["name"]
+            org_unit_name = feature["properties"]["name"]
         )
 
-    def extract_previous_period():
-        pass
+    # def save_calculated_results(self, df):
+    #     # not sure if needed...
+    #     df.to_csv(
+    #         f"{self.output_folder}/{self.results_file_name}",  
+    #         sep=";",
+    #         index=False
+    #     )
 
     def calculate(self):
-
         # open the seasonal forecast file downloaded from copernicus
         ds = xr.open_dataset(self.netcdf_file)
 
@@ -173,22 +235,34 @@ class SeasonalForecastHandler():
 
         ds.rio.write_crs("epsg:4326", inplace=True)
 
-
         result : List[PointValue] = []
-        
-        # loop over every featrue
+
+        # get leadtime hours
+        if self.total_sum_value:
+            # cumulative forecast, only requires leadtime hours between each period type
+            leadtime_hours = self._get_cumulative_leadtime_hours(self.forecast_date, self.period_type, self.period_count)
+        else:
+            # snapshot forecast, requires all available leadtime hours to calculate aggregate stats
+            leadtime_interval = 6 # hardcoded to 2m temperature for now
+            leadtime_hours = self._get_snapshot_leadtime_hours(self.forecast_date, self.period_type, self.period_count, leadtime_interval)
+
+        # convert to step values
+        steps = [np.timedelta64(hour, 'h').astype('timedelta64[ns]') for hour in leadtime_hours]
+
+        # loop over every feature
         for f in self.features:
 
             # crop dataset to this feature
-            cropped_ds = self.crop_dataset(ds, self.variable, f,)
+            cropped_ds = self._crop_dataset(ds, self.variable, f,)
 
             # for every time-step
-            for i in range(len(ds.step)):
+            for step in steps:
                 r = self._get_mean_value_for_dimension_for_step_for_geometry(
                     cropped_ds=cropped_ds,
+                    feature=f,
+                    forecast_date=self.forecast_date,
+                    step=step,
                     value_converter=converters[self.measurement_unit],
-                    step=i,
-                    feature=f
                 )
                 result.append(r)
 
@@ -217,6 +291,8 @@ class SeasonalForecastHandler():
             df['period'] = df['date'].dt.to_period(self.period_type[0])
             df = df.groupby(['org_unit_id', 'period', 'org_unit_name'])['value'].mean().reset_index()
 
+        df['period'] = df['period'].apply(lambda p: str(p)) # convert to iso string
+
         df.sort_values(['org_unit_id', 'period'], inplace=True)
 
         print(df)
@@ -226,9 +302,6 @@ class SeasonalForecastHandler():
             
 if __name__ == "__main__":
     #fetchData()
-    seasonal = SeasonalForecastHandler()
-    seasonal.calculate()
-
-
-
-#import matplotlib.pyplot as plt
+    seasonal = SeasonalForecastHandler('...')
+    df = seasonal.calculate()
+    print(df)

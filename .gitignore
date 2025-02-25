@@ -1,5 +1,6 @@
 results
 grib
+netcdf
 old
 
 *.grib
