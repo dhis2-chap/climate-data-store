@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from dateutil.relativedelta import relativedelta
 from datetime import timedelta
 
-from utils import increment_months
+from utils import increment_months, convert_pandas_period_to_iso
 
 class PeriodValue(BaseModel):
     nameOfPeriod : str
@@ -291,7 +291,7 @@ class SeasonalForecastHandler():
             df['period'] = df['date'].dt.to_period(self.period_type[0])
             df = df.groupby(['org_unit_id', 'period', 'org_unit_name'])['value'].mean().reset_index()
 
-        df['period'] = df['period'].apply(lambda p: str(p)) # convert to iso string
+        df['period'] = df['period'].apply(convert_pandas_period_to_iso) # convert to iso string
 
         df.sort_values(['org_unit_id', 'period'], inplace=True)
 

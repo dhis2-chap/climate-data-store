@@ -18,8 +18,9 @@ if __name__ == '__main__':
 
     fetch_data = FetchCopernicusData(config)
     
-    fetch_data.get_data()
+    #fetch_data.get_data()
     #fetch_data.netcdf_file_name = 'netcdf/request_hash_cb8b2f753d86_precip_2025.nc'
+    fetch_data.netcdf_file_name = 'netcdf/request_hash_9c0f81957200_temp_2025.nc'
 
-    forecast_handler = fetch_data.get_forecast_handler('2025-02-01', 'D') # period_count=3
+    forecast_handler = fetch_data.get_forecast_handler('2025-02-01', 'W', 8) # period_count=3
     df = forecast_handler.calculate()

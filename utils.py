@@ -15,6 +15,13 @@ def increment_months(start_date, months):
 
     return datetime(new_year, new_month, new_day)
 
+def convert_pandas_period_to_iso(period):
+    if period.freqstr[0] == 'W':
+        iso_str = period.start_time.strftime('%G-W%V')
+    else:
+        iso_str = str(period)
+    return iso_str
+
 def generate_hash(obj):
     obj_string = json.dumps(obj).encode('utf8')
     obj_hash = hashlib.sha1(obj_string).hexdigest()[:12] # truncated for shorter hash
