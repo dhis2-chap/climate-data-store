@@ -243,7 +243,7 @@ class SeasonalForecastHandler():
             leadtime_hours = self._get_cumulative_leadtime_hours(self.forecast_date, self.period_type, self.period_count)
         else:
             # snapshot forecast, requires all available leadtime hours to calculate aggregate stats
-            leadtime_interval = 6 # hardcoded to 2m temperature for now
+            leadtime_interval = 6 # FIXME: hardcoded to 2m temperature for now
             leadtime_hours = self._get_snapshot_leadtime_hours(self.forecast_date, self.period_type, self.period_count, leadtime_interval)
 
         # convert to step values

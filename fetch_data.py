@@ -31,18 +31,14 @@ class FetchCopernicusDataConfig(BaseModel):
     indicator : str = "2m_temperature" or "total_precipitation"
     output_folder : str = DEFAULT_OUTPUT_FOLDER
     file_name_postfix : str = ""  # NOTE: applies to result file only
-    years : List[int]
-    forecast_length : int = 3 * 31 * 24  # default is 3x 31-day months in hours
+    year : int
+    max_forecast_hours : int = 6 * 31 * 24  # default is 6x 31-day months in hours
 
     @model_validator(mode='before')
     def coerce_input_types(cls, data):
         # default to current year
-        if not data.get('years', None):
-            data['years'] = [datetime.today().year]
-
-        # ensure list of years
-        if not isinstance(data['years'], list):
-            data['years'] = [data['years']]
+        if not data.get('year', None):
+            data['year'] = datetime.today().year
 
         return data
 
@@ -80,8 +76,8 @@ class FetchCopernicusData():
         self.output_folder = config.output_folder
         self.file_name_postfix = config.file_name_postfix # not used for now... 
         self.indicator = config.indicator
-        self.years = config.years
-        self.forecast_length = config.forecast_length
+        self.year = config.year
+        self.max_forecast_hours = config.max_forecast_hours
 
     def check_output_folders(self):
         Path(f'{self.output_folder}/grib').mkdir(parents=True, exist_ok=True)
@@ -148,14 +144,13 @@ class FetchCopernicusData():
 
         return lead_time_hours
     
-    def create_request_body(self, request_config, bounding_box : BoundingBox, request_years : List[int]):
+    def create_request_body(self, request_config, bounding_box : BoundingBox, request_year : int):
         today = datetime.today()
-        if len(request_years) == 1 and request_years[0] == today.year:
-            # only requesting current year, limit the nr of months
+        if request_year == today.year:
+            # requesting current year, limit the nr of months
             request_months = list(range(1, today.month + 1))
         else:
-            # requesting historical years, all months required
-            # TODO: this wont work if combining with latest year since it will include nonexistant months
+            # requesting historical year, all months required
             request_months = list(range(1, 12 + 1))
 
         return {
@@ -163,7 +158,7 @@ class FetchCopernicusData():
             "data_format": request_config["data_format"], 
             "variable": request_config["variable"],
             "system": str(request_config["system"]),
-            "year": [str(yr) for yr in request_years],
+            "year": [str(request_year)],
             "month": [str(mn).zfill(2) for mn in request_months],
             "day": ["01"],
             "leadtime_hour": request_config["leadtime_hour"],
@@ -195,17 +190,17 @@ class FetchCopernicusData():
         print("bounding box: ",  bounding_box.model_dump())
 
         leadtime_interval = leadtime_intervals[self.indicator]
-        request_config['leadtime_hour'] = self._get_all_leadtime_hours(leadtime_interval, self.forecast_length)
+        request_config['leadtime_hour'] = self._get_all_leadtime_hours(leadtime_interval, self.max_forecast_hours)
 
         # set api request params
-        request_body = self.create_request_body(request_config, bounding_box, self.years)
+        request_body = self.create_request_body(request_config, bounding_box, self.year)
         print(request_body)
 
         # determine file names based on request input
         request_hash = generate_hash(request_body)
         self.file_name_base = f'request_hash_{request_hash}'
-        self.grib_file_name = f"grib/{self.file_name_base}.grib"
-        self.netcdf_file_name = f"netcdf/{self.file_name_base}.nc"
+        self.grib_file_name = f"grib/{self.file_name_base}{self.file_name_postfix}.grib"
+        self.netcdf_file_name = f"netcdf/{self.file_name_base}{self.file_name_postfix}.nc"
 
         # only fetch data if not previously downloaded
         if not os.path.exists(f'{self.output_folder}/{self.netcdf_file_name}'):
@@ -259,8 +254,8 @@ if __name__ == "__main__":
               Usage: python fetch_data.py [file_path] [indicator] [skipDownload] \n\n 
               • file_path:                  path to geojson-file\n 
               • indicator:                  '2m_temperature' or 'total_precipitation'\n 
-              • (optional) years:           year for which forecasts will be fetched, one or more separated by comma, format 'YYYY', default is current year\n
-              • (optional) forecastLength:  how many hours into the future to fetch forecast for, default is 3x 31-day months\n
+              • (optional) year:            year for which forecasts will be fetched, format 'YYYY', default is current year\n
+              • (optional) maxForecastHours:  how many hours into the future to fetch forecast for, default is 6x 31-day months\n
 
               example: python fetch_data.py data/orgUnitsSingleSierra.geojson total_precipitation
               """)
@@ -272,15 +267,15 @@ if __name__ == "__main__":
     indicator = sys.argv[2]
 
     try:
-        years = sys.argv[3]
-        years = [yr.strip() for yr in years.split(',')]
+        year = sys.argv[3]
+        year = int(year)
     except (IndexError):
-        years = None
+        year = None
 
     try:
-        forecast_length = sys.argv[4]
+        max_forecast_hours = sys.argv[4]
     except (IndexError):
-        forecast_length = None
+        max_forecast_hours = None
 
     # load geojson features
     with open(file_path) as file:
@@ -297,10 +292,11 @@ if __name__ == "__main__":
     config = FetchCopernicusDataConfig(
         originating_centre="ecmwf",
         features=features,
-        file_name_postfix="-"+file_name_geojson,
+        output_folder=output_dir,
+        file_name_postfix="_"+file_name_geojson,
         indicator=indicator,
-        years=years,
-        forecast_length=forecast_length,
+        year=year,
+        max_forecast_hours=max_forecast_hours,
     )
 
     # get data
