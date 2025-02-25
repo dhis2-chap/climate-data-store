@@ -32,13 +32,17 @@ class FetchCopernicusDataConfig(BaseModel):
     output_folder : str = DEFAULT_OUTPUT_FOLDER
     file_name_postfix : str = ""
     year : int
-    max_forecast_hours : int = 6 * 31 * 24  # default is 6x 31-day months in hours
+    max_forecast_hours : int
 
     @model_validator(mode='before')
     def coerce_input_types(cls, data):
         # default to current year
         if not data.get('year', None):
             data['year'] = datetime.today().year
+
+        # default of max forecast is 6x 31-day months in hours
+        if not data.get('max_forecast_hours', None):
+            data['max_forecast_hours'] = 6 * 31 * 24
 
         return data
 
@@ -269,6 +273,7 @@ if __name__ == "__main__":
         year = int(year)
     except (IndexError):
         year = None
+    print('yr', repr(year))
 
     try:
         max_forecast_hours = sys.argv[4]
@@ -284,7 +289,7 @@ if __name__ == "__main__":
     file_name_geojson = os.path.splitext(os.path.basename(file_path))[0]
 
     # get output folder as cmd working dir
-    output_dir = os.pwd()
+    output_dir = os.getcwd()
 
     # create config
     config = FetchCopernicusDataConfig(
